@@ -2,6 +2,9 @@ import sys
 import os
 from datetime import timedelta
 
+from celery.schedules import crontab
+
+
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, BASE_DIR)
@@ -178,8 +181,14 @@ FORGOT_PASSWORD_CAPTCHA_KEY_NAME = 'forgot_password_email_captcha'
 # celery settings
 CELERY_BROKER_URL = 'redis://192.168.68.134:6379/0'
 CELERY_ACCEPT_CONTENT = ['json']
-CELERY_RESULT_BACKEND = 'redis://192.168.68.134:6379/1'
+# CELERY_RESULT_BACKEND = 'redis://192.168.68.134:6379/1'
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Asia/Shanghai'
 CELERY_ENABLE_UTC = False
+CELERY_BEAT_SCHEDULE = {
+    'clear_incidents': {
+        'task': 'tasks.clear_incidents',
+        'schedule': crontab(minute=0, hour=0, day_of_week='mon')
+    }
+}
 DJANGO_CELERY_BEAT_TZ_AWARE = False
