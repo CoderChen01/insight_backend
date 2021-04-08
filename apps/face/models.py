@@ -27,6 +27,7 @@ class Face(models.Model):
     face_id = models.CharField(verbose_name='人脸ID', max_length=50)
     group = models.ForeignKey(verbose_name='所属分组', to='FaceGroup', on_delete=models.CASCADE)
     name = models.CharField(verbose_name='姓名', max_length=30)
+    # TODO change storage backend
     face_image = models.ImageField(verbose_name='人脸照片', upload_to='faces/%Y/%m/%d')
     add_time = models.DateTimeField(verbose_name='最后修改时间', auto_now=True)
 

@@ -286,3 +286,9 @@ def dispatch_tasks(task_id, end_time_hour, end_time_minute):
                     **info
                 )
             ).apply_async()
+        else:
+            camera.state = 20
+            camera.save()
+            with RedisTaskState(task_id=task_id) as task_state:
+                task_state.set_state('stopped')
+            clear_queue(task_id)

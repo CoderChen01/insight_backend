@@ -12,6 +12,7 @@ class Incident(models.Model):
     camera = models.ForeignKey(verbose_name='所属设备', to=Camera, on_delete=models.CASCADE)
     ai_skill = models.ForeignKey(verbose_name='所用AI接口', to=AISkill, on_delete=models.CASCADE)
 
+    # TODO change storage backend
     incident_image = models.ImageField(verbose_name='捕捉到的图片', upload_to='incident/%Y/%m/%d')
     response = models.TextField(verbose_name='请求响应')
     occurrence_time = models.DateTimeField(verbose_name='事件发生时间')
