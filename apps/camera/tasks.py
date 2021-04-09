@@ -102,7 +102,7 @@ def put_image(
                     frame_cropped = frame[y_min:y_max, x_min:x_max]
                     is_success, image = cv2.imencode('.png', frame_cropped)
                     if is_success:
-                        img = base64.b64encode(image.tostring()).decode('utf8')
+                        img = base64.b64encode(image.tobytes()).decode('utf8')
                     else:
                         continue
                     queue.put({
