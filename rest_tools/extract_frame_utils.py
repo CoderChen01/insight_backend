@@ -1,5 +1,5 @@
-import threading
 import base64
+from gevent import threading
 
 import cv2
 

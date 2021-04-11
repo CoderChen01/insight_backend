@@ -21,6 +21,7 @@ class Incident(models.Model):
         verbose_name = '事件总览'
         verbose_name_plural = verbose_name
         unique_together = ['user', 'incident_id']
+        ordering = ['-occurrence_time']
 
     def __str__(self):
         return self.camera.name

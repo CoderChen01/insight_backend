@@ -7,6 +7,7 @@ from uuid import uuid4
 from celery import shared_task, group
 import requests
 import cv2
+import gevent
 from django.core.files.base import ContentFile
 
 from .models import Camera
@@ -76,22 +77,10 @@ class Detect(object):
 def put_image(
         camera_url,
         coordinates,
-        interval,
         task_id,
         end_time_hour,
         end_time_minute):
-    """
-    put images to redis
-    :param camera_url: camera rtsp url
-    :param coordinates: identifiable area
-    :param interval: the interval of graping frame
-    :param task_id: the task id
-    :param end_time_hour: the hour of end time
-    :param end_time_minute: the minute of end time
-    :return: None
-    """
-    cap = NetworkCapture.create(camera_url)
-    cap.start_read()
+    cap = cv2.VideoCapture(camera_url)
     end_time = datetime.time(end_time_hour, end_time_minute)
     coordinates = json.loads(coordinates)
     username, camera_id = task_id.split('##')
@@ -101,44 +90,42 @@ def put_image(
     ).first()
 
     try:
-        while cap.is_started():
-            with RedisTaskQueue(task_id) as queue:
+        with RedisTaskQueue(task_id) as queue:
+            while cap.isOpened():
                 if check_end(end_time):
                     camera.state = 22
                     camera.save()
                     queue.clear()
-                    cap.stop_read()
                     cap.release()
                     return
                 if check_stopped(task_id):
                     camera.state = 22
                     camera.save()
                     queue.clear()
-                    cap.stop_read()
                     cap.release()
                     return
 
-                retval, frame = cap.read_latest_frame()
-                if retval:
-                    y_min = coordinates['y_min']
-                    y_max = coordinates['y_max']
-                    x_min = coordinates['x_min']
-                    x_max = coordinates['x_max']
+                retval, frame = cap.read()
+                if not retval:
+                    cap = cv2.VideoCapture(camera_url)  # if meet exception, restart connection
+                    continue
+                y_min = coordinates['y_min']
+                y_max = coordinates['y_max']
+                x_min = coordinates['x_min']
+                x_max = coordinates['x_max']
 
-                    frame_cropped = frame[y_min:y_max, x_min:x_max]
-                    is_success, image = cv2.imencode('.png', frame_cropped)
-                    if is_success:
-                        img = base64.b64encode(image.tobytes()).decode('utf8')
-                    else:
-                        continue
-                    queue.put({
-                        'image': img,
-                        'current_time': datetime.datetime.now().__str__()
-                    })
+                frame_cropped = frame[y_min:y_max, x_min:x_max]
+                is_success, image = cv2.imencode('.png', frame_cropped)
+                if is_success:
+                    img = base64.b64encode(image.tobytes()).decode('utf8')
                 else:
-                    cap = NetworkCapture.create(camera_url)
-                    cap.start_read()  # if meet exception, restart connection
-                time.sleep(interval)  # extraction frequency
+                    continue
+                queue.put({
+                    'image': img,
+                    'current_time': datetime.datetime.now().__str__()
+                })
+                for _ in range(10):
+                    cap.grab()
     except Exception:
         camera.state = 20
         camera.save()
@@ -153,6 +140,7 @@ def detect_image(
         task_id,
         end_time_hour,
         end_time_minute,
+        interval,
         faces=None,
         **info):
     end_time = datetime.time(end_time_hour, end_time_minute)
@@ -166,8 +154,8 @@ def detect_image(
     ai_skill_retry_num = 3
 
     try:
-        while True:
-            with RedisTaskQueue(task_id) as queue:
+        with RedisTaskQueue(task_id) as queue:
+            while True:
                 if check_end(end_time):
                     camera.state = 22
                     camera.save()
@@ -179,6 +167,7 @@ def detect_image(
                     queue.clear()
                     return
 
+                start_time = time.time()
                 image_item = queue.get()
                 if not image_item:
                     continue
@@ -208,8 +197,7 @@ def detect_image(
                 # if response:
                     detected_image = ContentFile(
                         name=str(uuid4()) + '.png',
-                        content=base64.b64decode(image)
-                    )
+                        content=base64.b64decode(image))
                     Incident.objects.create(
                         user_id=info.get('user'),
                         incident_id=str(uuid4()),
@@ -217,8 +205,11 @@ def detect_image(
                         ai_skill_id=info.get('ai_skill'),
                         incident_image=detected_image,
                         response=json.dumps(response),
-                        occurrence_time=datetime.datetime.fromisoformat(current_time)
-                    )
+                        occurrence_time=datetime.datetime.fromisoformat(current_time))
+                elapsed_time = time.time() - start_time
+                if interval < elapsed_time:
+                    continue
+                gevent.sleep(interval - elapsed_time)  # extraction frequency
     except Exception:
         camera.state = 20
         camera.save()
@@ -296,20 +287,17 @@ def dispatch_tasks(task_id, end_time_hour, end_time_minute):
                 put_image.s(
                     camera_url=camera_url,
                     coordinates=coordinates,
-                    interval=camera.extraction_settings.frequency,
                     task_id=task_id,
                     end_time_hour=end_time_hour,
-                    end_time_minute=end_time_minute
-                ),
+                    end_time_minute=end_time_minute),
                 detect_image.s(
                     skill_id=ai_skill.id,
                     task_id=task_id,
                     end_time_hour=end_time_hour,
                     end_time_minute=end_time_minute,
+                    interval=camera.extraction_settings.frequency,
                     faces=all_faces,
-                    **info
-                )
-            ).apply_async()
+                    **info)).apply_async()
         else:
             camera.state = 20
             camera.save()

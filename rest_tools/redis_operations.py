@@ -144,6 +144,7 @@ class RedisTaskQueue(RedisClient):
 
     def get(self):
         data = self.client.get(self.task_id)
+        self.clear()
         if data:
             return json.loads(data)
         return
