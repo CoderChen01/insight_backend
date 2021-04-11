@@ -140,17 +140,13 @@ class RedisTaskQueue(RedisClient):
         self.task_id = task_id
 
     def put(self, data):
-        self.client.lpush(self.task_id, json.dumps(data))
+        self.client.set(self.task_id, json.dumps(data))
 
     def get(self):
-        data = self.client.rpop(self.task_id)
+        data = self.client.get(self.task_id)
         if data:
             return json.loads(data)
         return
-
-
-    def qsize(self):
-        return self.client.llen(self.task_id)
 
     def clear(self):
         self.client.delete(self.task_id)

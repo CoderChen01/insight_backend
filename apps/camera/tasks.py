@@ -12,23 +12,38 @@ from django.core.files.base import ContentFile
 from .models import Camera
 from incident.models import Incident
 from interface.models import AISkill
-from rest_tools.extract_frame_utils import is_opened
+from rest_tools.extract_frame_utils import is_opened, NetworkCapture
 from rest_tools.redis_operations import RedisTaskState, RedisTaskQueue
 
 
 def check_end(end_time):
+    """
+    check whether it is within the time period set by the user.
+    :param end_time: the end time set by the user.
+    :return: bool
+    """
     now_time = datetime.datetime.now()
     now_time = datetime.time(now_time.hour, now_time.minute)
     return now_time >= end_time
 
 
 def check_stopped(task_id):
+    """
+    check whether the user has paused the task
+    :param task_id: the task id
+    :return: bool
+    """
     with RedisTaskState(task_id) as check_state:
         return check_state.check_stopped()
 
 
 
 def clear_queue(task_id):
+    """
+    clear frame queue
+    :param task_id: the task id
+    :return: None
+    """
     with RedisTaskQueue(task_id) as queue_clear:
         queue_clear.clear()
 
@@ -52,10 +67,8 @@ class Detect(object):
             json=base_request,
             headers={
                 'Content-Type': 'application/json'
-            }
-        )
+            })
         response.encoding = 'utf8'
-
         return response.json()
 
 
@@ -67,7 +80,18 @@ def put_image(
         task_id,
         end_time_hour,
         end_time_minute):
-    cap = cv2.VideoCapture(camera_url)
+    """
+    put images to redis
+    :param camera_url: camera rtsp url
+    :param coordinates: identifiable area
+    :param interval: the interval of graping frame
+    :param task_id: the task id
+    :param end_time_hour: the hour of end time
+    :param end_time_minute: the minute of end time
+    :return: None
+    """
+    cap = NetworkCapture.create(camera_url)
+    cap.start_read()
     end_time = datetime.time(end_time_hour, end_time_minute)
     coordinates = json.loads(coordinates)
     username, camera_id = task_id.split('##')
@@ -77,22 +101,24 @@ def put_image(
     ).first()
 
     try:
-        while cap.isOpened():
+        while cap.is_started():
             with RedisTaskQueue(task_id) as queue:
                 if check_end(end_time):
                     camera.state = 22
                     camera.save()
                     queue.clear()
+                    cap.stop_read()
                     cap.release()
                     return
                 if check_stopped(task_id):
                     camera.state = 22
                     camera.save()
                     queue.clear()
+                    cap.stop_read()
                     cap.release()
                     return
 
-                retval, frame = cap.read()
+                retval, frame = cap.read_latest_frame()
                 if retval:
                     y_min = coordinates['y_min']
                     y_max = coordinates['y_max']
@@ -109,12 +135,10 @@ def put_image(
                         'image': img,
                         'current_time': datetime.datetime.now().__str__()
                     })
-                    queue.get() if queue.qsize() > 1 else time.sleep(0.2)  # Discard some old frames
-
                 else:
-                    cap = cv2.VideoCapture(camera_url)  # if meet exception, restart connection
-
-                time.sleep(interval - 0.2)  # extraction frequency
+                    cap = NetworkCapture.create(camera_url)
+                    cap.start_read()  # if meet exception, restart connection
+                time.sleep(interval)  # extraction frequency
     except Exception:
         camera.state = 20
         camera.save()
