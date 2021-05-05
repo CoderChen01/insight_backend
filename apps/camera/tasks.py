@@ -7,7 +7,6 @@ from uuid import uuid4
 from celery import shared_task, group
 import requests
 import cv2
-import gevent
 from django.core.files.base import ContentFile
 
 from .models import Camera
@@ -98,11 +97,11 @@ def put_image(
                     queue.clear()
                     cap.release()
                     return
-                if check_stopped(task_id):
-                    camera.state = 22
+                is_stopped = check_stopped(task_id)
+                if is_stopped:
+                    camera.state = is_stopped
                     camera.save()
                     queue.clear()
-                    cap.release()
                     return
 
                 retval, frame = cap.read()
@@ -127,10 +126,8 @@ def put_image(
                 for _ in range(10):
                     cap.grab()
     except Exception:
-        camera.state = 20
-        camera.save()
         with RedisTaskState(task_id=task_id) as task_state:
-            task_state.set_state('stopped')
+            task_state.set_state('error')
         clear_queue(task_id)
 
 
@@ -161,8 +158,9 @@ def detect_image(
                     camera.save()
                     queue.clear()
                     return
-                if check_stopped(task_id):
-                    camera.state = 22
+                is_stopped = check_stopped(task_id)
+                if is_stopped:
+                    camera.state = is_stopped
                     camera.save()
                     queue.clear()
                     return
@@ -209,12 +207,10 @@ def detect_image(
                 elapsed_time = time.time() - start_time
                 if interval < elapsed_time:
                     continue
-                gevent.sleep(interval - elapsed_time)  # extraction frequency
+                time.sleep(interval - elapsed_time)  # extraction frequency
     except Exception:
-        camera.state = 20
-        camera.save()
         with RedisTaskState(task_id=task_id) as task_state:
-            task_state.set_state('stopped')
+            task_state.set_state('error')
         clear_queue(task_id)
 
 
@@ -299,8 +295,6 @@ def dispatch_tasks(task_id, end_time_hour, end_time_minute):
                     faces=all_faces,
                     **info)).apply_async()
         else:
-            camera.state = 20
-            camera.save()
             with RedisTaskState(task_id=task_id) as task_state:
-                task_state.set_state('stopped')
+                task_state.set_state('error')
             clear_queue(task_id)

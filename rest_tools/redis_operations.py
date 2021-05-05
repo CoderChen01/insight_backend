@@ -125,7 +125,9 @@ class RedisTaskState(RedisClient):
         state = self.client.get(self.task_id)
         if state:
             if state.decode('utf8') == 'stopped':
-                return True
+                return 22
+            elif state.decode('utf8') == 'error':
+                return 20
         return False
 
     def set_state(self, state):
