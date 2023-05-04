@@ -295,7 +295,7 @@
                     'result': '验证成功',
                     'flag': True
                 }
-            
+
         return {
             'result': '验证码错误',
             'flag': False
@@ -307,26 +307,26 @@
 ```python
     def validate(self, key_name):
         raw_value = self.client.hget(key_name, self.email)
-        
+
         if raw_value is not None:
             value = json.loads(raw_value)
             current_timestamp = int(time.time())
             difference_timestamp = current_timestamp - value['add_timestamp']
-            
+
             if self.captcha == value['captcha']:
                 result = {
                     'result': '验证成功',
                     'flag': True
                 }
-                
+
                 if difference_timestamp > 5 * 60:
                     result = {
                         'result': '验证码过期',
                         'flag': False
                     }
-                    
+
                 return result
-            
+
         return {
             'result': '验证码错误',
             'flag': False

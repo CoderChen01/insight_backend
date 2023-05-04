@@ -1,19 +1,20 @@
 import base64
 import datetime
-import time
 import json
+import time
 from uuid import uuid4
 
-from celery import shared_task, group
-import requests
 import cv2
+import requests
+from celery import group, shared_task
 from django.core.files.base import ContentFile
-
-from .models import Camera
 from incident.models import Incident
 from interface.models import AISkill
-from rest_tools.extract_frame_utils import is_opened, NetworkCapture
-from rest_tools.redis_operations import RedisTaskState, RedisTaskQueue
+
+from rest_tools.extract_frame_utils import NetworkCapture, is_opened
+from rest_tools.redis_operations import RedisTaskQueue, RedisTaskState
+
+from .models import Camera
 
 
 def check_end(end_time):
@@ -37,7 +38,6 @@ def check_stopped(task_id):
         return check_state.check_stopped()
 
 
-
 def clear_queue(task_id):
     """
     clear frame queue
@@ -52,12 +52,13 @@ class Detect(object):
     """
     upload an image to server to detect something
     """
+
     def __init__(self, url, image):
         self.url = url
         self.image = image
 
     def get_result(self, faces=None):
-        base_request = {'image': self.image}
+        base_request = {"image": self.image}
 
         if faces:
             base_request.update(faces)
@@ -65,27 +66,22 @@ class Detect(object):
         response = requests.post(
             url=self.url,
             json=base_request,
-            headers={
-                'Content-Type': 'application/json'
-            })
-        response.encoding = 'utf8'
+            headers={"Content-Type": "application/json"},
+        )
+        response.encoding = "utf8"
         return response.json()
 
 
 @shared_task(ignore_result=True)
 def put_image(
-        camera_url,
-        coordinates,
-        task_id,
-        end_time_hour,
-        end_time_minute):
+    camera_url, coordinates, task_id, end_time_hour, end_time_minute
+):
     cap = cv2.VideoCapture(camera_url)
     end_time = datetime.time(end_time_hour, end_time_minute)
     coordinates = json.loads(coordinates)
-    username, camera_id = task_id.split('##')
+    username, camera_id = task_id.split("##")
     camera = Camera.objects.filter(
-        user__username=username,
-        camera_id=camera_id
+        user__username=username, camera_id=camera_id
     ).first()
 
     try:
@@ -106,45 +102,49 @@ def put_image(
 
                 retval, frame = cap.read()
                 if not retval:
-                    cap = cv2.VideoCapture(camera_url)  # if meet exception, restart connection
+                    cap = cv2.VideoCapture(
+                        camera_url
+                    )  # if meet exception, restart connection
                     continue
-                y_min = coordinates['y_min']
-                y_max = coordinates['y_max']
-                x_min = coordinates['x_min']
-                x_max = coordinates['x_max']
+                y_min = coordinates["y_min"]
+                y_max = coordinates["y_max"]
+                x_min = coordinates["x_min"]
+                x_max = coordinates["x_max"]
 
                 frame_cropped = frame[y_min:y_max, x_min:x_max]
-                is_success, image = cv2.imencode('.png', frame_cropped)
+                is_success, image = cv2.imencode(".png", frame_cropped)
                 if is_success:
-                    img = base64.b64encode(image.tobytes()).decode('utf8')
+                    img = base64.b64encode(image.tobytes()).decode("utf8")
                 else:
                     continue
-                queue.put({
-                    'image': img,
-                    'current_time': datetime.datetime.now().__str__()
-                })
+                queue.put(
+                    {
+                        "image": img,
+                        "current_time": datetime.datetime.now().__str__(),
+                    }
+                )
                 for _ in range(10):
                     cap.grab()
     except Exception:
         with RedisTaskState(task_id=task_id) as task_state:
-            task_state.set_state('error')
+            task_state.set_state("error")
         clear_queue(task_id)
 
 
 @shared_task(ignore_result=True)
 def detect_image(
-        skill_id,
-        task_id,
-        end_time_hour,
-        end_time_minute,
-        interval,
-        faces=None,
-        **info):
+    skill_id,
+    task_id,
+    end_time_hour,
+    end_time_minute,
+    interval,
+    faces=None,
+    **info
+):
     end_time = datetime.time(end_time_hour, end_time_minute)
-    username, camera_id = task_id.split('##')
+    username, camera_id = task_id.split("##")
     camera = Camera.objects.filter(
-        user__username=username,
-        camera_id=camera_id
+        user__username=username, camera_id=camera_id
     ).first()
     ai_skill = AISkill.objects.filter(id=skill_id).first()
     skill_url = ai_skill.ai_skill_url
@@ -169,7 +169,9 @@ def detect_image(
                 image_item = queue.get()
                 if not image_item:
                     continue
-                image, current_time = image_item.get('image'), image_item.get('current_time')
+                image, current_time = image_item.get("image"), image_item.get(
+                    "current_time"
+                )
 
                 try:
                     request_obj = Detect(url=skill_url, image=image)
@@ -191,38 +193,43 @@ def detect_image(
                         continue
 
                 # if event occur, record result and image
-                if response.get('has_event'):
-                # if response:
+                if response.get("has_event"):
+                    # if response:
                     detected_image = ContentFile(
-                        name=str(uuid4()) + '.png',
-                        content=base64.b64decode(image))
+                        name=str(uuid4()) + ".png",
+                        content=base64.b64decode(image),
+                    )
                     Incident.objects.create(
-                        user_id=info.get('user'),
+                        user_id=info.get("user"),
                         incident_id=str(uuid4()),
-                        camera_id=info.get('camera'),
-                        ai_skill_id=info.get('ai_skill'),
+                        camera_id=info.get("camera"),
+                        ai_skill_id=info.get("ai_skill"),
                         incident_image=detected_image,
                         response=json.dumps(response),
-                        occurrence_time=datetime.datetime.fromisoformat(current_time))
+                        occurrence_time=datetime.datetime.fromisoformat(
+                            current_time
+                        ),
+                    )
                 elapsed_time = time.time() - start_time
                 if interval < elapsed_time:
                     continue
                 time.sleep(interval - elapsed_time)  # extraction frequency
     except Exception:
         with RedisTaskState(task_id=task_id) as task_state:
-            task_state.set_state('error')
+            task_state.set_state("error")
         clear_queue(task_id)
 
 
 @shared_task(ignore_result=True)
 def dispatch_tasks(task_id, end_time_hour, end_time_minute):
-    username, camera_id = task_id.split('##')
+    username, camera_id = task_id.split("##")
     camera = Camera.objects.filter(
-        user__username=username,
-        camera_id=camera_id
+        user__username=username, camera_id=camera_id
     ).first()  # get the camera model to extract frame
 
-    ai_skill_settings = camera.ai_skill_settings.all()  # get all ai_skills setted
+    ai_skill_settings = (
+        camera.ai_skill_settings.all()
+    )  # get all ai_skills setted
     for ai_skill_setting in ai_skill_settings:
         ai_skill = ai_skill_setting.ai_skill
         coordinates = ai_skill_setting.coordinates
@@ -251,9 +258,9 @@ def dispatch_tasks(task_id, end_time_hour, end_time_minute):
 
         if skill_test == 200 and camera_test:
             info = {
-                'user': camera.user.id,
-                'camera': camera.id,
-                'ai_skill': ai_skill.id
+                "user": camera.user.id,
+                "camera": camera.id,
+                "ai_skill": ai_skill.id,
             }
 
             all_faces = None
@@ -268,16 +275,18 @@ def dispatch_tasks(task_id, end_time_hour, end_time_minute):
                     if faces:
                         for face in faces:
                             face_image = face.face_image
-                            face_images.append(base64.b64encode(face_image.read()))
+                            face_images.append(
+                                base64.b64encode(face_image.read())
+                            )
 
                 all_faces = {
-                    'similarity': similarity,
-                    'quality': quality,
-                    'faces': face_images
+                    "similarity": similarity,
+                    "quality": quality,
+                    "faces": face_images,
                 }
 
             with RedisTaskState(task_id=task_id) as task_state:
-                task_state.set_state('running')
+                task_state.set_state("running")
 
             group(
                 put_image.s(
@@ -285,7 +294,8 @@ def dispatch_tasks(task_id, end_time_hour, end_time_minute):
                     coordinates=coordinates,
                     task_id=task_id,
                     end_time_hour=end_time_hour,
-                    end_time_minute=end_time_minute),
+                    end_time_minute=end_time_minute,
+                ),
                 detect_image.s(
                     skill_id=ai_skill.id,
                     task_id=task_id,
@@ -293,8 +303,10 @@ def dispatch_tasks(task_id, end_time_hour, end_time_minute):
                     end_time_minute=end_time_minute,
                     interval=camera.extraction_settings.frequency,
                     faces=all_faces,
-                    **info)).apply_async()
+                    **info
+                ),
+            ).apply_async()
         else:
             with RedisTaskState(task_id=task_id) as task_state:
-                task_state.set_state('error')
+                task_state.set_state("error")
             clear_queue(task_id)

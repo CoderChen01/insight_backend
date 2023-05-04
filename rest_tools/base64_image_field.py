@@ -1,13 +1,12 @@
-import imghdr
-import io
 import base64
 import binascii
+import imghdr
+import io
 import uuid
 
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.utils.translation import gettext_lazy as _
-
 from rest_framework.fields import ImageField
 
 
@@ -24,10 +23,10 @@ class Base64FieldMixin(object):
     def INVALID_TYPE_MESSAGE(self):
         raise NotImplementedError
 
-    EMPTY_VALUES = (None, '', [], (), {})
+    EMPTY_VALUES = (None, "", [], (), {})
 
     def __init__(self, *args, **kwargs):
-        self.represent_in_base64 = kwargs.pop('represent_in_base64', False)
+        self.represent_in_base64 = kwargs.pop("represent_in_base64", False)
         super(Base64FieldMixin, self).__init__(*args, **kwargs)
 
     def to_internal_value(self, base64_data):
@@ -37,8 +36,8 @@ class Base64FieldMixin(object):
 
         if isinstance(base64_data, str):
             # Strip base64 header.
-            if ';base64,' in base64_data:
-                header, base64_data = base64_data.split(';base64,')
+            if ";base64," in base64_data:
+                header, base64_data = base64_data.split(";base64,")
 
             # Try to decode the file. Return validation error if it fails.
             try:
@@ -54,8 +53,13 @@ class Base64FieldMixin(object):
             complete_file_name = file_name + "." + file_extension
             data = ContentFile(decoded_file, name=complete_file_name)
             return super(Base64FieldMixin, self).to_internal_value(data)
-        raise ValidationError(_('Invalid type. This is not an base64 string: {}'.format(
-            type(base64_data))))
+        raise ValidationError(
+            _(
+                "Invalid type. This is not an base64 string: {}".format(
+                    type(base64_data)
+                )
+            )
+        )
 
     def get_file_extension(self, filename, decoded_file):
         raise NotImplementedError
@@ -70,13 +74,13 @@ class Base64FieldMixin(object):
             # empty base64 str rather than let the exception propagate unhandled
             # up into serializers.
             if not file:
-                return ''
+                return ""
 
             try:
-                with open(file.path, 'rb') as f:
+                with open(file.path, "rb") as f:
                     return base64.b64encode(f.read()).decode()
             except Exception:
-                return '图片受损，请删除后重新创建'
+                return "图片受损，请删除后重新创建"
         else:
             return super(Base64FieldMixin, self).to_representation(file)
 
@@ -86,11 +90,8 @@ class Base64ImageField(Base64FieldMixin, ImageField):
     A django-rest-framework field for handling image-uploads through raw post data.
     It uses base64 for en-/decoding the contents of the file.
     """
-    ALLOWED_TYPES = (
-        "jpeg",
-        "jpg",
-        "png"
-    )
+
+    ALLOWED_TYPES = ("jpeg", "jpg", "png")
     INVALID_FILE_MESSAGE = _("Please upload a valid image.")
     INVALID_TYPE_MESSAGE = _("The type of the image couldn't be determined.")
 

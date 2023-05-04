@@ -1,5 +1,5 @@
-import time
 import json
+import time
 
 from redis import Redis
 
@@ -10,6 +10,7 @@ class RedisClient:
     """
     Simply encapsulate the redis module
     """
+
     reids_url = None
 
     def __enter__(self):
@@ -24,6 +25,7 @@ class SaveEmailCaptchaMap(RedisClient):
     """
     Save the relationship between the captcha and the mailbox
     """
+
     reids_url = settings.EMAIL_CAPTCHA_MAP_CACHE
 
     def __init__(self, email, captcha):
@@ -32,17 +34,17 @@ class SaveEmailCaptchaMap(RedisClient):
 
     def save(self, key_name):
         current_timestamp = int(time.time())
-        value = {
-            'captcha': self.captcha,
-            'add_timestamp': current_timestamp
-        }
-        self.client.hset(name=key_name, key=self.email, value=json.dumps(value))
+        value = {"captcha": self.captcha, "add_timestamp": current_timestamp}
+        self.client.hset(
+            name=key_name, key=self.email, value=json.dumps(value)
+        )
 
 
 class ValidateCaptcha(RedisClient):
     """
     validate captcha aoccording the email
     """
+
     reids_url = settings.EMAIL_CAPTCHA_MAP_CACHE
 
     def __init__(self, email, captcha):
@@ -55,32 +57,24 @@ class ValidateCaptcha(RedisClient):
         if raw_value is not None:
             value = json.loads(raw_value)
             current_timestamp = int(time.time())
-            difference_timestamp = current_timestamp - value['add_timestamp']
+            difference_timestamp = current_timestamp - value["add_timestamp"]
 
-            if self.captcha == value['captcha']:
-                result = {
-                    'result': '验证成功',
-                    'flag': True
-                }
+            if self.captcha == value["captcha"]:
+                result = {"result": "验证成功", "flag": True}
 
                 if difference_timestamp > 5 * 60:
-                    result = {
-                        'result': '验证码过期',
-                        'flag': False
-                    }
+                    result = {"result": "验证码过期", "flag": False}
 
                 return result
 
-        return {
-            'result': '验证码错误',
-            'flag': False
-        }
+        return {"result": "验证码错误", "flag": False}
 
 
 class RedisThrottleCache(RedisClient):
     """
     store user send mail rate
     """
+
     reids_url = settings.REDIS_THROTTLE_CACHE
 
     def __init__(self, key, value=None, expire=None):
@@ -111,11 +105,12 @@ class RedisThrottleCache(RedisClient):
     @classmethod
     def get(cls, key, *args):
         with cls(key=key) as get_obj:
-            return  get_obj._get()
+            return get_obj._get()
 
 
 class RedisTaskState(RedisClient):
     """store the task's state"""
+
     reids_url = settings.REDIS_CHECK_TASK_STATE
 
     def __init__(self, task_id):
@@ -124,9 +119,9 @@ class RedisTaskState(RedisClient):
     def check_stopped(self):
         state = self.client.get(self.task_id)
         if state:
-            if state.decode('utf8') == 'stopped':
+            if state.decode("utf8") == "stopped":
                 return 22
-            elif state.decode('utf8') == 'error':
+            elif state.decode("utf8") == "error":
                 return 20
         return False
 
@@ -136,6 +131,7 @@ class RedisTaskState(RedisClient):
 
 class RedisTaskQueue(RedisClient):
     """the image queue used by task"""
+
     reids_url = settings.REDIS_TASK_QUEUE
 
     def __init__(self, task_id):

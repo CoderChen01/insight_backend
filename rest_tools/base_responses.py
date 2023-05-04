@@ -2,10 +2,12 @@
 Encapsulates the basic response data
 """
 
+
 class BaseResponse:
     """
     the basic response data
     """
+
     def __init__(self, code, msg, data=None, **kwargs):
         self.code = code
         self.msg = msg

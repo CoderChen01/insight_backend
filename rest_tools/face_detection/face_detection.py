@@ -1,13 +1,15 @@
-import os
 import base64
+import os
 
-import numpy
 import cv2
+import numpy
 
 
 class FaceDetection(object):
     def __init__(self, image):
-        val_file = os.path.join(os.path.dirname(__file__), 'haarcascade_frontalface_default.xml')
+        val_file = os.path.join(
+            os.path.dirname(__file__), "haarcascade_frontalface_default.xml"
+        )
         self.image = image
         self._haar_cascade_face = cv2.CascadeClassifier(val_file)
 
@@ -19,7 +21,9 @@ class FaceDetection(object):
         return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     def detect(self):
-        face_rects = self._haar_cascade_face.detectMultiScale(self._base2cv2, scaleFactor=1.2, minNeighbors=5)
+        face_rects = self._haar_cascade_face.detectMultiScale(
+            self._base2cv2, scaleFactor=1.2, minNeighbors=5
+        )
 
         if len(face_rects) == 1:
             return True

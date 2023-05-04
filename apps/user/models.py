@@ -1,11 +1,12 @@
-from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.db import models
 
 
 class UserProfile(AbstractUser):
     """
     Define the user infomantion
     """
+
     nickname = models.CharField(verbose_name="用户昵称", max_length=16, default="")
 
     class Meta:

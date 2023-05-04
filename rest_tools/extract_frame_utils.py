@@ -1,7 +1,7 @@
 import base64
-from gevent import threading
 
 import cv2
+from gevent import threading
 
 
 def is_opened(camera_url):
@@ -20,11 +20,11 @@ def get_preview(camera_url):
     if not retval:
         return False
 
-    is_success, image = cv2.imencode('.png', preview)
+    is_success, image = cv2.imencode(".png", preview)
     if not is_success:
         return False
 
-    return base64.b64encode(image).decode('utf8')
+    return base64.b64encode(image).decode("utf8")
 
 
 class NetworkCapture(cv2.VideoCapture):
