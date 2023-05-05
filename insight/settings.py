@@ -27,16 +27,16 @@ ALLOWED_HOSTS = ["*"]
 # Application definition
 
 INSTALLED_APPS = [
-    "django.contrib.auth",
-    "django.contrib.contenttypes",
-    "django.contrib.sessions",
-    "django.contrib.messages",
-    "django.contrib.staticfiles",
     "user.apps.UserConfig",
     "interface.apps.InterfaceConfig",
     "camera.apps.CameraConfig",
     "face.apps.FaceConfig",
     "incident.apps.IncidentConfig",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
     "corsheaders",
     "django_celery_beat",
 ]
@@ -152,7 +152,7 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {"ACCESS_TOKEN_LIFETIME": timedelta(days=7)}
 
 
-# About sending email whose function is in 'djano.core.mail'
+# About sending email whose function is in 'django.core.mail'
 EMAIL_HOST = local_settings.EMAIL_HOST
 EMAIL_PORT = local_settings.EMAIL_PORT
 EMAIL_HOST_USER = local_settings.EMAIL_HOST_USER
@@ -186,3 +186,6 @@ CELERY_BEAT_SCHEDULE = {
     }
 }
 DJANGO_CELERY_BEAT_TZ_AWARE = False
+
+# default auto field
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
