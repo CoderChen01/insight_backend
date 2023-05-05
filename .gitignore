@@ -174,5 +174,6 @@ cython_debug/
 
 # My gitignore
 web/
+media/
 # ignore pyenv virtualenv
 **/.python-version
