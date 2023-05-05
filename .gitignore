@@ -174,7 +174,5 @@ cython_debug/
 
 # My gitignore
 web/
-# ignore django migrations
-**/migrations/
 # ignore pyenv virtualenv
 **/.python-version
