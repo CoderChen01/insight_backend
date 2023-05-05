@@ -16,6 +16,12 @@ repos:
     - id: isort
       args: ["--profile", "black", "--filter-files"]
 
+- repo: https://github.com/adamchainz/django-upgrade
+  rev: ""  # replace with latest tag on GitHub
+  hooks:
+  -   id: django-upgrade
+      args: [--target-version, "4.2"]   # Replace with Django version
+
 - repo: https://github.com/pre-commit/pre-commit-hooks
   rev: v4.4.0
   hooks:
