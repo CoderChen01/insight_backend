@@ -1,6 +1,8 @@
 import datetime
 import json
 
+import cv2
+from django.http.response import StreamingHttpResponse
 from django_celery_beat.models import CrontabSchedule, PeriodicTask
 from face.models import FaceGroup
 from interface.models import AISkill
@@ -27,6 +29,7 @@ __all__ = [
     "UpdateCamera",
     "DeleteCamera",
     "CameraPreview",
+    "VideoPreview",
     "SetExtractFrameSettings",
     "SetAISkillSettings",
     "Start",
@@ -569,6 +572,62 @@ class CameraPreview(APIView):
             code=1, msg="success", success_msg="摄像头预览图片请求成功", data=preview
         )
         return Response(retdata.result)
+
+
+class VideoPreview(APIView):
+    authentication_classes = (JWTAuthentication,)
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, requests, *args, **kwargs):
+        serializer = VideoPreviewSerializer(data=requests.query_params)
+
+        if not serializer.is_valid():
+            retdata = BaseResponse(code=0, msg="error")
+            if serializer.errors.get("camera_id"):
+                if serializer.errors["camera_id"][0].code == "required":
+                    retdata.error_msg = "摄像头ID是必须的"
+                else:
+                    retdata.error_msg = "摄像头ID不合法，为6-20位字母、数字或下划线"
+            return Response(retdata.result)
+
+        camera = Camera.objects.filter(
+            user=requests.user,
+            camera_id=serializer.validated_data["camera_id"],
+        ).first()
+
+        if not camera:
+            retdata = BaseResponse(code=0, msg="error", error_msg="不存在该摄像头")
+            return Response(retdata.result)
+
+        cap = cv2.VideoCapture(camera.camera_url)
+        if not cap.isOpened():
+            retdata = BaseResponse(code=0, msg="error")
+            retdata.error_msg = "摄像头连接失败"
+            return Response(retdata.result)
+
+        def images():
+            cached_image = None
+            while True:
+                is_normal, image = cap.read()
+                if is_normal:
+                    encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 60]
+                    _, img_jpg = cv2.imencode(".jpeg", image, encode_param)
+                    cached_image = img_jpg.tobytes()
+                yield (
+                    b"--frame\r\n"
+                    b"Content-Type: image/jpeg\r\n\r\n"
+                    + cached_image
+                    + b"\r\n"
+                )
+
+        images_gen = images()
+
+        response = StreamingHttpResponse(
+            images_gen,
+            content_type="multipart/x-mixed-replace;boundary=frame",
+        )
+        response["Cache-Control"] = "no-cache"
+        return response
 
 
 class SetExtractFrameSettings(APIView):

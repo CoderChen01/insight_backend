@@ -13,6 +13,7 @@ urlpatterns = [
     path("camera/delete", DeleteCamera.as_view()),
     path("camera/set-extraction-settings", SetExtractFrameSettings.as_view()),
     path("camera/preview", CameraPreview.as_view()),
+    path("camera/video-preview", VideoPreview.as_view()),
     path("camera/set-ai-skill-settings", SetAISkillSettings.as_view()),
     path("camera/start-task", Start.as_view()),
     path("camera/stop-task", Stop.as_view()),

@@ -28,6 +28,7 @@ __all__ = [
     "StopSerializer",
     "PauseSerializer",
     "RestartSerializer",
+    "VideoPreviewSerializer",
 ]
 
 
@@ -269,6 +270,15 @@ class CameraPreviewSerializer(serializers.Serializer):
     )
 
 
+class VideoPreviewSerializer(serializers.Serializer):
+    camera_id = serializers.CharField(
+        max_length=50,
+        validators=[
+            id_validator,
+        ],
+    )
+
+
 class SetExtractFrameSettingsSerializer(serializers.ModelSerializer):
     camera_id = serializers.CharField(
         max_length=50,
@@ -359,6 +369,7 @@ class SetAISkillSettingsSerializer(serializers.Serializer):
                 "quality字段只能是0,1,2,3中的一个，分别表示无，低，中，高"
             )
 
+    @staticmethod
     def validate_coordinates(coordinates):
         coordinates_fields = ("x_min", "y_min", "x_max", "y_max")
         if len(coordinates) != len(coordinates_fields):
