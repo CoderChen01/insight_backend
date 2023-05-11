@@ -15,6 +15,7 @@ from rest_tools.base_responses import BaseResponse
 from rest_tools.extract_frame_utils import get_preview, is_opened
 from rest_tools.redis_operations import RedisTaskState
 
+from .authentication import JWTQueryParamAuthentication
 from .models import Camera, CameraGroup
 from .serializers import *
 from .tasks import dispatch_tasks
@@ -575,7 +576,7 @@ class CameraPreview(APIView):
 
 
 class VideoPreview(APIView):
-    authentication_classes = (JWTAuthentication,)
+    authentication_classes = (JWTQueryParamAuthentication,)
     permission_classes = (IsAuthenticated,)
 
     def get(self, requests, *args, **kwargs):
@@ -615,10 +616,14 @@ class VideoPreview(APIView):
                     cached_image = img_jpg.tobytes()
                 yield (
                     b"--frame\r\n"
+                    b"Content-Length: "
+                    + str(len(cached_image)).encode()
+                    + b"\r\n"
                     b"Content-Type: image/jpeg\r\n\r\n"
                     + cached_image
                     + b"\r\n"
                 )
+                # yield cached_image
 
         images_gen = images()
 
